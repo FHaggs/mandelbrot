@@ -3,14 +3,16 @@ use num_complex::Complex;
 
 const WIDTH: usize = 1280;
 const HEIGHT: usize = 720;
-const MAX_ITER: u32 = 100;
+const STARTING_MAX_ITER: u32 = 100;
 
 fn mandelbrot(c: Complex<f64>, max_iter: u32) -> u32 {
     let mut z = Complex::new(0.0, 0.0);
+
     for i in 0..max_iter {
         if z.norm_sqr() > 4.0 {
             return i;
         }
+
         z = z * z + c;
     }
     max_iter
@@ -50,9 +52,11 @@ fn main() {
     let center_y = 0.13182590420531198; // Example interesting zoom center y
 
     let mut scale = 3.5;
+    let mut max_iters = STARTING_MAX_ITER;
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         scale *= 0.9;
+        max_iters += max_iters / 50;
         let scale_x = scale / WIDTH as f64;
         let scale_y = (scale * HEIGHT as f64 / WIDTH as f64) / HEIGHT as f64;
 
@@ -63,8 +67,8 @@ fn main() {
                 let c = Complex::new(cx, cy);
 
                 // Mandelbrot iteration
-                let iter = mandelbrot(c, MAX_ITER);
-                pixels[y * WIDTH + x] = color_from_iter(iter as f64, MAX_ITER);
+                let iter = mandelbrot(c, STARTING_MAX_ITER);
+                pixels[y * WIDTH + x] = color_from_iter(iter as f64, STARTING_MAX_ITER);
             }
         }
 
