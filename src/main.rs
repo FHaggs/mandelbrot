@@ -1,18 +1,11 @@
 use minifb::{Key, Window, WindowOptions};
 use num_complex::Complex;
 use rayon::prelude::*;
-
 const WIDTH: usize = 1280;
 const HEIGHT: usize = 720;
 const STARTING_MAX_ITER: u32 = 500;
 
-/// Calculates the Mandelbrot iteration count for a given complex number.
-///
-/// This function includes several optimizations:
-/// 1.  **Interior Checking**: Quickly identifies points within the main cardioid and period-2 bulb.
-/// 2.  **Continuous Coloring**: Returns a smooth f64 value for smooth color gradients.
-/// 3.  **Periodicity Checking**: Detects if an orbit enters a cycle.
-fn mandelbrot(c: Complex<f64>, max_iter: u32, use_periodicity_check: bool) -> f64 {
+fn mandelbrot(c: Complex<f64>, max_iter: u32) -> f64 {
     // Optimization 1: Interior Checking for the main cardioid and period-2 bulb.
     let zr = c.re;
     let zi = c.im;
@@ -25,34 +18,26 @@ fn mandelbrot(c: Complex<f64>, max_iter: u32, use_periodicity_check: bool) -> f6
     }
 
     let mut z = Complex::new(0.0, 0.0);
-    let mut sample_z = Complex::new(0.0, 0.0);
-
+    let mut z_sample = Complex::new(0.0, 0.0);
     for i in 0..max_iter {
-        // Check if the point escapes
         if z.norm_sqr() > 4.0 {
-            // Optimization 2: Continuous Coloring formula
-            // This creates a smooth value instead of an integer, preventing color banding.
-            let log_zn: f64 = (z.norm() as f64).ln();
-            let nu = (log_zn / 2.0f64.ln()).ln() / 2.0f64.ln();
-            return i as f64 + 1.0 - nu;
+            return smooth(i, z);
         }
-
         z = z * z + c;
-
-        // Optimization 3: Periodicity Checking
-        // If the orbit enters a cycle, it's inside the set.
-        if use_periodicity_check {
-            if z == sample_z {
-                return max_iter as f64;
+        if i % 20 == 0 {
+            if z_sample == z {
+                smooth(i, z);
             }
-            // Take a sample at fixed intervals. A power-of-two interval is also possible.
-            if i % 20 == 0 {
-                sample_z = z;
-            }
+            z_sample = z;
         }
     }
+    return max_iter as f64;
+}
 
-    max_iter as f64
+fn smooth(x: u32, z: Complex<f64>) -> f64 {
+    let log_zn: f64 = (z.norm() as f64).ln();
+    let nu = (log_zn / 2.0f64.ln()).ln() / 2.0f64.ln();
+    return x as f64 + 1.0 - nu;
 }
 
 // An improved function to convert a smooth iteration value to a vibrant RGB color.
@@ -68,9 +53,33 @@ fn color_from_iter(iter: f64, max_iter: u32) -> u32 {
         (r << 16) | (g << 8) | b
     }
 }
+fn maldelbrot_image(
+    max_x: usize,
+    max_y: usize,
+    center_x: f64,
+    center_y: f64,
+    scale: f64,
+    max_iter: u32,
+) -> Vec<u32> {
+    let mut pixels: Vec<u32> = vec![0; max_x * max_y];
+    let scale_x = scale / max_x as f64;
+    let scale_y = (scale * HEIGHT as f64 / WIDTH as f64) / HEIGHT as f64;
+    pixels.par_iter_mut().enumerate().for_each(|(i, pixel)| {
+        let x = i % max_x;
+        let y = i / max_x;
+        let cx = center_x + (x as f64 - max_x as f64 / 2.0) * scale_x;
+        let cy = center_y + (y as f64 - max_y as f64 / 2.0) * scale_y;
+
+        let c = Complex::new(cx, cy);
+        let iter = mandelbrot(c, max_iter);
+        let color = color_from_iter(iter, max_iter);
+        *pixel = color;
+    });
+
+    pixels
+}
 
 fn main() {
-    let mut pixels: Vec<u32> = vec![0; WIDTH * HEIGHT];
     let mut window = Window::new(
         "Mandelbrot Zoom - ESC to exit",
         WIDTH,
@@ -79,58 +88,19 @@ fn main() {
     )
     .unwrap_or_else(|e| panic!("{}", e));
 
-    window.set_target_fps(60);
+    window.set_target_fps(30);
 
     let center_x = -0.743639266077433;
     let center_y = 0.131824786875559;
 
     let mut scale = 3.5;
-    let mut max_iters = STARTING_MAX_ITER;
-
-    // Flag for adaptive periodicity checking
-    let mut use_periodicity_check = true;
+    // let max_iters = STARTING_MAX_ITER;
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         // Automatic zoom-in animation
-        scale *= 0.99; // Slower zoom for a smoother feel
-        // max_iters = (max_iters as f64 * 1.02) as u32; // Increase detail as we zoom
-        //max_iters = max_iters + 10;
+        scale *= 0.99;
 
-        let scale_x = scale / WIDTH as f64;
-        let aspect_ratio = HEIGHT as f64 / WIDTH as f64;
-        let scale_y = (scale * aspect_ratio) / HEIGHT as f64;
-
-        // Process pixels in parallel using Rayon
-        pixels
-            .par_chunks_mut(WIDTH)
-            .enumerate()
-            .for_each(|(y, row)| {
-                for (x, pixel) in row.iter_mut().enumerate() {
-                    let cx = center_x + (x as f64 - WIDTH as f64 / 2.0) * scale_x;
-                    let cy = center_y + (y as f64 - HEIGHT as f64 / 2.0) * scale_y;
-                    let c = Complex::new(cx, cy);
-
-                    let iter_val = mandelbrot(c, max_iters, use_periodicity_check);
-
-                    if iter_val >= max_iters as f64 {
-                        // This uses atomic operations, safe for parallelism
-                        // but for a simple counter, a non-atomic approach after the loop is fine too.
-                        // Here, we'll just count it later for simplicity.
-                    }
-
-                    *pixel = color_from_iter(iter_val, max_iters);
-                }
-            });
-
-        // Recalculate n_inside after the parallel loop
-        let n_inside = pixels.iter().filter(|&&p| p == 0).count();
-
-        // Update the adaptive flag for the next frame
-        use_periodicity_check = n_inside > (WIDTH * HEIGHT) / 1024;
-        // println!(
-        //     "Scale: {:.2e}, Max Iters: {}, Inside Px: {}, Periodicity Check: {}",
-        //     scale, max_iters, n_inside, use_periodicity_check
-        // );
+        let pixels = maldelbrot_image(WIDTH, HEIGHT, center_x, center_y, scale, STARTING_MAX_ITER);
 
         window.update_with_buffer(&pixels, WIDTH, HEIGHT).unwrap();
     }
