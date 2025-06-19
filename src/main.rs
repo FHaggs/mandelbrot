@@ -60,8 +60,8 @@ fn maldelbrot_image(
     center_y: f64,
     scale: f64,
     max_iter: u32,
-) -> Vec<u32> {
-    let mut pixels: Vec<u32> = vec![0; max_x * max_y];
+    pixels: &mut [u32],
+) {
     let scale_x = scale / max_x as f64;
     let scale_y = (scale * HEIGHT as f64 / WIDTH as f64) / HEIGHT as f64;
     pixels.par_iter_mut().enumerate().for_each(|(i, pixel)| {
@@ -75,8 +75,6 @@ fn maldelbrot_image(
         let color = color_from_iter(iter, max_iter);
         *pixel = color;
     });
-
-    pixels
 }
 
 fn main() {
@@ -95,12 +93,13 @@ fn main() {
 
     let mut scale = 3.5;
     // let max_iters = STARTING_MAX_ITER;
+    let mut pixels: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         // Automatic zoom-in animation
         scale *= 0.99;
 
-        let pixels = maldelbrot_image(WIDTH, HEIGHT, center_x, center_y, scale, STARTING_MAX_ITER);
+        maldelbrot_image(WIDTH, HEIGHT, center_x, center_y, scale, STARTING_MAX_ITER, pixels.as_mut_slice());
 
         window.update_with_buffer(&pixels, WIDTH, HEIGHT).unwrap();
     }
