@@ -54,29 +54,25 @@ fn color_from_iter(iter: f64, max_iter: u32) -> u32 {
     }
 }
 fn maldelbrot_image(
-    max_x: usize,
-    max_y: usize,
+    pixels: &mut Vec<u32>,
     center_x: f64,
     center_y: f64,
     scale: f64,
     max_iter: u32,
-) -> Vec<u32> {
-    let mut pixels: Vec<u32> = vec![0; max_x * max_y];
-    let scale_x = scale / max_x as f64;
+) {
+    let scale_x = scale / WIDTH as f64;
     let scale_y = (scale * HEIGHT as f64 / WIDTH as f64) / HEIGHT as f64;
     pixels.par_iter_mut().enumerate().for_each(|(i, pixel)| {
-        let x = i % max_x;
-        let y = i / max_x;
-        let cx = center_x + (x as f64 - max_x as f64 / 2.0) * scale_x;
-        let cy = center_y + (y as f64 - max_y as f64 / 2.0) * scale_y;
+        let x = i % WIDTH;
+        let y = i / WIDTH;
+        let cx = center_x + (x as f64 - WIDTH as f64 / 2.0) * scale_x;
+        let cy = center_y + (y as f64 - HEIGHT as f64 / 2.0) * scale_y;
 
         let c = Complex::new(cx, cy);
         let iter = mandelbrot(c, max_iter);
         let color = color_from_iter(iter, max_iter);
         *pixel = color;
     });
-
-    pixels
 }
 
 fn main() {
@@ -95,12 +91,13 @@ fn main() {
 
     let mut scale = 3.5;
     // let max_iters = STARTING_MAX_ITER;
+    let mut pixels: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         // Automatic zoom-in animation
         scale *= 0.99;
 
-        let pixels = maldelbrot_image(WIDTH, HEIGHT, center_x, center_y, scale, STARTING_MAX_ITER);
+        maldelbrot_image(&mut pixels, center_x, center_y, scale, STARTING_MAX_ITER);
 
         window.update_with_buffer(&pixels, WIDTH, HEIGHT).unwrap();
     }
