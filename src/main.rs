@@ -57,13 +57,7 @@ fn color_from_iter(iter: f64, max_iter: u32) -> u32 {
         (r << 16) | (g << 8) | b
     }
 }
-fn maldelbrot_image(
-    pixels: &mut Vec<u32>,
-    center_x: f64,
-    center_y: f64,
-    scale: f64,
-    max_iter: u32,
-) {
+fn maldelbrot_image(pixels: &mut [u32], center_x: f64, center_y: f64, scale: f64, max_iter: u32) {
     let scale_x = scale / WIDTH as f64;
     let scale_y = (scale * HEIGHT as f64 / WIDTH as f64) / HEIGHT as f64;
     pixels.par_iter_mut().enumerate().for_each(|(i, pixel)| {
