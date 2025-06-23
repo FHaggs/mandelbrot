@@ -1,5 +1,9 @@
 use minifb::{Key, Window, WindowOptions};
 use num_complex::Complex;
+use std::fs::File;
+use std::io::Write;
+use std::time::Instant;
+
 use rayon::prelude::*;
 const WIDTH: usize = 1280;
 const HEIGHT: usize = 720;
@@ -93,12 +97,20 @@ fn main() {
     // let max_iters = STARTING_MAX_ITER;
     let mut pixels: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
-    while window.is_open() && !window.is_key_down(Key::Escape) {
+    let mut file = File::create("frame_times.csv").expect("Unable to create file");
+    writeln!(file, "frame,ms").unwrap();
+    let mut iters = 0;
+
+    while window.is_open() && !window.is_key_down(Key::Escape) && iters < 2000 {
         // Automatic zoom-in animation
         scale *= 0.99;
-
+        let start = Instant::now();
         maldelbrot_image(&mut pixels, center_x, center_y, scale, STARTING_MAX_ITER);
+        let duration = start.elapsed();
+
+        writeln!(file, "{},{}", iters, duration.as_secs_f64() * 1000.0).unwrap();
 
         window.update_with_buffer(&pixels, WIDTH, HEIGHT).unwrap();
+        iters += 1;
     }
 }
