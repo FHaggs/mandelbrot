@@ -90,8 +90,9 @@ fn main() {
     let mut scale = 3.5;
     // let max_iters = STARTING_MAX_ITER;
     let mut pixels: Vec<u32> = vec![0; WIDTH * HEIGHT];
-
-    let mut file = File::create("frame_times.csv").expect("Unable to create file");
+    let run_name = std::env::args().nth(1).expect("no run name given");
+    let mut file =
+        File::create(format!("data/run_{}.csv", run_name)).expect("Unable to create file");
     writeln!(file, "frame,ms").unwrap();
     let mut iters = 0;
 
